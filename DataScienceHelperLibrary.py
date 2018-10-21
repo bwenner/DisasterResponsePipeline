@@ -17,12 +17,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.pipeline import FeatureUnion
 from sklearn import preprocessing
+from sqlalchemy import create_engine
 
 import fnmatch as fnmatch
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sb
+
 
 import glob
 import os
@@ -39,10 +41,10 @@ def IsMatch(txt, wildcard):
 def PrintLine(text = '', number = 20, character = '-'):
     print(character * number, text, character * number)
 
-def DfTailHead(df, count = 15):    
-    count = min(count, df.shape[0])
-    pd.concat([df.head(count), df.tail(count)])
- 
+def DfTailHead(df, count = 15):
+    count = min(abs(count) if count != 0 else 15, df.shape[0])
+    return pd.concat([df.head(count), df.tail(count)])
+
 def CheckIfValuesContainedInEachOther(values):
     probdir = {}
     for i1, v1 in enumerate(values):
@@ -107,12 +109,12 @@ def AnalyseNanColumns(df, columns = None):
     '''
     INPUT:
     df: Dataframe
-    columns = None or column name or list of columns
+    columns = str or list
     '''
     if df is None:
         raise ValueError('Fnc "AnalyseNanColumns": df is None')
-    if columns is not None and type(columns) is not list:
-        columns = [columns]
+    if columns is not None:
+        columns = GetAsList(columns)
     PrintLine('Analysis of Columns with NaN values')
     if columns is not None:
         dfnull = df[columns].isnull().mean()
@@ -207,12 +209,68 @@ def AnalyseDataframe(df):
     if df is None:
         raise ValueError('Fnc "AnalyseDataframe": df is None')
     PrintLine('Dataframe analysis started')
-    print('Shape = ', df.shape)
+    print('Shape: ', df.shape)
+    
+    print('Number of duplicate rows: ', df.shape[0] - df.drop_duplicates().shape[0])
     
     AnalyseNanColumns(df)
     
     PrintLine('Dataframe analysis finished')
 
+def GetEqualColumns(df1, df2):
+    '''
+    INPUT:
+    df1, df2: DataFrame
+    
+    OUTPUT:
+    List of equal columns or empty list, 
+    list columns df1, 
+    list columns df2 
+    '''
+    cols1 = list(df1.columns)
+    cols2 = list(df2.columns)
+    ret = [ col for col in cols1 if col in cols2 ]
+    if len(ret) > 0:
+        print('Equal columns found: ', ret)
+    else:
+        print('No equal columns found')
+    return ret, cols1, cols2
+    
+    
+def AnalyseEqualColumns(df1, df2):
+    '''
+    INPUT:
+    df1, df2: DataFrame
+    '''
+    PrintLine('Starting comparing dataframes:')
+    equals, cols1, cols2 = GetEqualColumns(df1, df2)
+    
+    if len(equals) > 0:
+        for col in equals:
+            uq1 = set(df1[col].unique())
+            uq2 = set(df2[col].unique())
+            
+            if len(uq1 - uq2) == 0 and len(uq2 - uq1) == 0:
+                print('Column {}: All values in both columns contained'.format(col))
+            diff = uq1 - uq2
+            if len(diff) > 0:
+                print('Column {}: Values contained in df1 but not in df2: '.format(col), diff)
+            diff = uq2 - uq1
+            if len(diff) > 0:
+                print('Column {}: Values contained in df2 but not in df2: '.format(col), diff)
+        vc1 = df1.id.value_counts()
+        vc2 = df2.id.value_counts()
+        diff = [ (msgid, vc1[msgid], vc2[msgid]) for msgid in vc1.index if vc1[msgid] != vc2[msgid] ]
+        if len(diff) > 0:
+            print('Column {}: Value counts differ: '.format(col), diff)
+        else:
+            print('Column {}: Value counts are equal'.format(col))
+    else:
+        print('No equal column names found:')
+        print(cols1)
+        print(cols2)
+    PrintLine('Finished comparing dataframes:')
+    
 def AppendColumnByValuesInCell(df, column, newcolumn, values):
     '''
     INPUT:
@@ -402,16 +460,16 @@ def CleanValuesInColumn(df, columns, trim = True, clean = None):
                     repvalues = clean[key]
                     if len(repvalues) == 1:
                         dfcopy[col] = dfcopy[col].str.replace(repvalues[0], key, regex = False)
-                        applied = 'replaced "{}" for "{}"'.format(key, repvalues)
+                        applied = 'replaced "{}" by "{}"'.format(repvalues, key)
                     elif len(repvalues) == 2:
                         dfcopy[col] = dfcopy[col].str.replace(repvalues[0], key, regex = False).str.replace(repvalues[1], key, regex = False)
-                        applied = 'replaced "{}" for "{}"'.format(key, repvalues)
+                        applied = 'replaced "{}" by "{}"'.format(repvalues, key)
                     elif len(repvalues) == 3:
                         dfcopy[col] = dfcopy[col].str.replace(repvalues[0], key, regex = False).str.replace(repvalues[1], key, regex = False).str.replace(repvalues[2], key, regex = False)
-                        applied = 'replaced "{}" for "{}"'.format(key, repvalues)
+                        applied = 'replaced "{}" by "{}"'.format(repvalues, key)
                     elif len(repvalues) == 4:
                         dfcopy[col] = dfcopy[col].str.replace(repvalues[0], key, regex = False).str.replace(repvalues[1], key, regex = False).str.replace(repvalues[2], key, regex = False).str.replace(repvalues[3], key, regex = False)
-                        applied = 'replaced "{}" for "{}"'.format(key, repvalues)
+                        applied = 'replaced "{}" by "{}"'.format(repvalues, key)
                     else:
                         print('Number of replace values not supported: ', len(repvalues))
             if trim:
@@ -895,6 +953,28 @@ def RemoveColumnsHavingOnlyOneValue(df):
     dfret = df[keep]
     PrintLine('finished searching and removing columns with one value:')
     return dfret
+   
+def RemoveDuplicateRows(df):
+    '''
+    INPUT:
+    df: Dataframe
+    '''
+    PrintLine('Removing duplicate rows')
+    print('Current shape: ', df.shape)
+    dupCnt = df.shape[0] - df.drop_duplicates().shape[0]
+    if dupCnt == 0:
+        print('No duplicates in dataframe')
+        PrintLine()
+        return df
+    print('There are ', dupCnt, ' duplicates in the data')
+    df = df.drop_duplicates()
+    dupCnt = df.shape[0] - df.drop_duplicates().shape[0]
+    if dupCnt == 0:
+        print('All duplicates successfully removed. New size: ', df.shape)
+    else:
+        print('Could not remove all duplicates. Still remaining: ', dupCnt)
+    PrintLine()
+    return df
     
     
 def RemoveRowsWithAllMissingValues(df, subset = None):
@@ -1118,7 +1198,36 @@ def SelectColumnsByWildcard(df, wildcards, logfound = False):
         print('Columns found to keep: ', keep)
     PrintLine('Finished keeping columns matchting to wildcards: {}'.format(len(keep)))
     return df[ keep ]
+
+
+def SqlCheckValuesInTable(df, table, engine):
+    '''
+    INPUT:
+    df: Dataframe
+    table: string
+    engine: Sqlalchemy engine
+    
+    OUTPUT:
+    returns true or false
+    '''   
    
+def QuickMerge(df1, df2, how = 'inner'):
+    '''
+    finds common columns and makes a join all equal columns
+    INPUT:
+    df1, df2: DataFrames
+    '''
+    possibleCols = GetCommonColumns(df1, df2)
+    if len(possibleCols) == 0:
+        raise ValueError('No common columns found to merge on')
+    PrintLine('Merging dataframes on columns: ')
+    print(possibleCols)
+    df = df1.merge(df2, how = how, on = possibleCols)
+    print('New shape: ', df.shape)
+    PrintLine()
+    return df
+
+    
 
 def TrainingFull(df):
     pass
