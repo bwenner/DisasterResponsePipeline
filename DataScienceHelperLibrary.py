@@ -88,38 +88,38 @@ def GetAsList(object):
         return list(object.values)
     raise ValueError('Type unknown: ', type(object))
     
-def AnalyseColumn(df, column, analyseNan = False, analyseValueCounts = False):
+def AnalyzeColumn(df, column, analyzeNan = True, analyzeVc = True):
     '''
     INPUT:
     df: Dataframe
-    column: column name or list of names to analyse
+    column: column name or list of names to Analyze
     '''
     if not type(column) is list:
         column = [column]    
     PrintLine('Analysing column/s "{}"'.format(column))
     for col in column:
         print('Datatype (dtype) = ', df[col].dtype)
-        if analyseNan:
-            AnalyseNanColumns(df, col)
-        if analyseValueCounts:
-            AnalyseValueCounts(df, columns = col)
+        if analyzeNan:
+            AnalyzeNanColumns(df, col)
+        if AnalyzeValueCounts:
+            AnalyzeValueCounts(df, columns = col)
     PrintLine('Finished analysing column/s "{}"'.format(column))
 
-def AnalyseNanColumns(df, columns = None):
+def AnalyzeNanColumns(df, columns = None):
     '''
     INPUT:
     df: Dataframe
     columns = str or list
     '''
     if df is None:
-        raise ValueError('Fnc "AnalyseNanColumns": df is None')
+        raise ValueError('Fnc "AnalyzeNanColumns": df is None')
     if columns is not None:
         columns = GetAsList(columns)
-    PrintLine('Analysis of Columns with NaN values')
-    if columns is not None:
-        dfnull = df[columns].isnull().mean()
     else:
-        dfnull = df.isnull().mean()
+        columns = list(df.columns)
+    PrintLine('Analysis of Columns with NaN values')
+
+    dfnull = df[columns].isnull().mean()
     
     if dfnull.shape[0] == 0:
         print('All columns have values')
@@ -131,7 +131,7 @@ def AnalyseNanColumns(df, columns = None):
     dfnull = dfnull.rename(renameDic)
     tmp = dfnull[dfnull == 0]
     if tmp.shape[0] > 0:
-        print('Columns having all values: {0}, {1:.2f}%'.format(len(tmp), len(tmp) * 100 / len(df.columns)))
+        print('Columns having all values: {0}, {1:.2f}%'.format(len(tmp), len(tmp) * 100 / len(columns)))
         print(tmp)
     tmp = dfnull[(dfnull > 0) & (dfnull <= 0.05)]
     if tmp.shape[0] > 0:
@@ -157,7 +157,7 @@ def AnalyseNanColumns(df, columns = None):
     
 
     
-def AnalyseValueCounts(df, columns = None, types = None, considerMaxValues = 20):
+def AnalyzeValueCounts(df, columns = None, types = None, considerMaxValues = 20):
     '''
     INPUT:
     df: Dataframe
@@ -166,9 +166,9 @@ def AnalyseValueCounts(df, columns = None, types = None, considerMaxValues = 20)
     considerMaxValues: Print values if # is <= xrange
     '''
     if df is None:
-        raise ValueError('Fnc "AnalyseValueCounts": df is None')
+        raise ValueError('Fnc "AnalysisValueCounts": df is None')
     if (considerMaxValues < 0 or considerMaxValues > 30):
-        raise ValueError('Fnc "AnalyseValueCounts": considerMaxValues < 0 or too large (> 30)', considerMaxValues)
+        raise ValueError('Fnc "AnalysisValueCounts": considerMaxValues < 0 or too large (> 30)', considerMaxValues)
     logtxt = 'Considering columns: '
     if columns is None or types is None:
         if columns is None and types is None:
@@ -184,7 +184,7 @@ def AnalyseValueCounts(df, columns = None, types = None, considerMaxValues = 20)
                 columns = [col for col in columnstmp if col in columns]
             
     if len(columns) == 0:
-        print('No columns to analyse value counts for. Passed columns and types: ', columns, types)
+        print('No columns to Analyze value counts for. Passed columns and types: ', columns, types)
         return
     print(logtxt, columns)
     PrintLine('Dataframe value counts analye started')
@@ -197,23 +197,23 @@ def AnalyseValueCounts(df, columns = None, types = None, considerMaxValues = 20)
         else:
             print(vcser)
         PrintLine('', character = '*')
-    PrintLine('Dataframe value counts analye finished')
+    PrintLine('Dataframe value counts analysis finished')
     
     
     
-def AnalyseDataframe(df):
+def AnalyzeDataFrame(df):
     '''
     INPUT:
     df: Dataframe
     '''
     if df is None:
-        raise ValueError('Fnc "AnalyseDataframe": df is None')
+        raise ValueError('Fnc "AnalyzeDataframe": df is None')
     PrintLine('Dataframe analysis started')
     print('Shape: ', df.shape)
     
     print('Number of duplicate rows: ', df.shape[0] - df.drop_duplicates().shape[0])
     
-    AnalyseNanColumns(df)
+    AnalyzeNanColumns(df)
     
     PrintLine('Dataframe analysis finished')
 
@@ -237,7 +237,7 @@ def GetEqualColumns(df1, df2):
     return ret, cols1, cols2
     
     
-def AnalyseEqualColumns(df1, df2):
+def AnalyzeEqualColumns(df1, df2):
     '''
     INPUT:
     df1, df2: DataFrame
@@ -846,11 +846,11 @@ def RemoveAllRowsHavingAnyMissingValue(df, log = True):
 
 
     
-def AnalysePCAResult(pca, pcaind, df, text = False, consider = 0.08):
+def AnalyzePCAResult(pca, pcaind, df, text = False, consider = 0.08):
     '''
     INPUT:
     pca: PCA
-    pcaind: index of component to analyse and plot
+    pcaind: index of component to Analyze and plot
     text: print components by absolute weight descending
     consider: plot components with absolute weight >= x
     '''
