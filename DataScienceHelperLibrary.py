@@ -1008,12 +1008,13 @@ def RemoveRowsByThresh(df, thresh, subset = None):
     PrintLine('Rows removed by thresh = "{}": {}'.format(thresh, df.shape[0] - dfcopy.shape[0]))
     return dfcopy
 
-def RemoveRowsWithValueInColumn(df, column, values):
+def RemoveRowsWithValueInColumn(df, column, values, option = None):
     '''
     INPUT: 
     df: Dataframe
     column: string or collection of strings
     values: values to search in column. If row with value found, it will be removed.
+    option: 'startswith', 'contains'
     
     OUTPUT:
     Dataframe without rows having values in column
@@ -1022,7 +1023,17 @@ def RemoveRowsWithValueInColumn(df, column, values):
         raise ValueError('Fnc "RemoveRowsWithValueInColumn": df is None')
     if type(values) is not list:
         values = [values]
-    dfret = df[~df[column].isin(values)]
+    if option is not None:
+        if option == 'startswith':
+            for val in values:
+                dfret = df[~df[column].str.startswith(val)]
+        elif option == 'contains':
+            for val in values:
+                dfret = df[~df[column].str.contains(val)]
+        else:
+            raise ValueError('Fnc "RemoveRowsWithValueInColumn": option is invalid: ', option)
+    else:
+        dfret = df[~df[column].isin(values)]
     print('{} rows (ca. {}%) have been removed with value/s "{}" in column "{}"'.format(df.shape[0] - dfret.shape[0], "{0:.2f}".format((df.shape[0] - dfret.shape[0]) * 100 / df.shape[0]), values, column))
     return df[~df[column].isin(values)]
     
