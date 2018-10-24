@@ -11,6 +11,8 @@ __author__ = 'Benjamin Wenner'
 from collections import defaultdict
 from encodings.aliases import aliases
 from multiprocessing import Pool
+import nltk
+nltk.download(['punkt', 'wordnet', 'stopwords'])
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from sklearn.model_selection import train_test_split
@@ -1034,9 +1036,37 @@ def RemoveRowsWithValueInColumn(df, column, values, option = None):
             raise ValueError('Fnc "RemoveRowsWithValueInColumn": option is invalid: ', option)
     else:
         dfret = df[~df[column].isin(values)]
-    print('{} rows (ca. {}%) have been removed with value/s "{}" in column "{}"'.format(df.shape[0] - dfret.shape[0], "{0:.2f}".format((df.shape[0] - dfret.shape[0]) * 100 / df.shape[0]), values, column))
+    print('{} rows (ca. {}%) have been removed having value/s "{}" in column "{}"'.format(df.shape[0] - dfret.shape[0], "{0:.2f}".format((df.shape[0] - dfret.shape[0]) * 100 / df.shape[0]), values, column))
     return df[~df[column].isin(values)]
+
+def SelectRowsWithValueInColumn(df, column, values, option = None):
+    '''
+    INPUT: 
+    df: Dataframe
+    column: string or collection of strings
+    values: values to search in column..
+    option: 'startswith', 'contains'
     
+    OUTPUT:
+    Dataframe with rows having values in column
+    '''
+    if df is None:
+        raise ValueError('Fnc "SelectRowsWithValueInColumn": df is None')
+    if type(values) is not list:
+        values = [values]
+    if option is not None:
+        if option == 'startswith':
+            for val in values:
+                dfret = df[df[column].str.startswith(val)]
+        elif option == 'contains':
+            for val in values:
+                dfret = df[df[column].str.contains(val)]
+        else:
+            raise ValueError('Fnc "RemoveRowsWithValueInColumn": option is invalid: ', option)
+    else:
+        dfret = df[df[column].isin(values)]
+    print('{} rows (ca. {}%) have been removed not having value/s "{}" in column "{}"'.format(df.shape[0] - dfret.shape[0], "{0:.2f}".format((df.shape[0] - dfret.shape[0]) * 100 / df.shape[0]), values, column))
+    return df[df[column].isin(values)]
 
 def ScaleFrame(df, copy = True, withMean = True, withStd = True):
     '''
