@@ -30,6 +30,7 @@ import seaborn as sb
 
 import glob
 import os
+import string
 import sys
 
 # Algorithms
@@ -47,6 +48,14 @@ def DfTailHead(df, count = 15):
     count = min(abs(count) if count != 0 else 15, df.shape[0])
     return pd.concat([df.head(count), df.tail(count)])
 
+def IsNullOrEmpty(text):
+    return text is None or len(text) == 0
+
+def RemoveNonLetters(text):
+    if text is None:
+        return text
+    return ''.join(s for s in text if s.isalpha())
+    
 def CheckIfValuesContainedInEachOther(values):
     probdir = {}
     for i1, v1 in enumerate(values):
@@ -1039,6 +1048,28 @@ def RemoveRowsWithValueInColumn(df, column, values, option = None):
     print('{} rows (ca. {}%) have been removed having value/s "{}" in column "{}"'.format(df.shape[0] - dfret.shape[0], "{0:.2f}".format((df.shape[0] - dfret.shape[0]) * 100 / df.shape[0]), values, column))
     return df[~df[column].isin(values)]
 
+def RemoveRowsByValuesOverAverage(df, column, times = 6):
+    '''
+    INPUT:
+    df: DataFrame
+    column: Column in df
+    times: Number: if column_mean * times < cell then drop row
+    '''
+    if df is None:
+        raise ValueError('Fnc "RemoveRowsByValuesOverAverage": df is None')
+    mean = times
+    dfret = None
+    PrintLine('Start dropping rows with value/textlength > ' + str(times) + ' * mean')
+    if df[column].dtype == 'O':
+        mean = mean * df[column].str.len().mean()
+        dfret = df[df[column].str.len() < mean]
+    else:
+        mean = mean * df[column].mean()
+        dfret = df[df[column] < mean]
+    print('Rows removed: ', df.shape[0] - dfret.shape[0])
+    PrintLine('Finished removing')
+    return dfret
+    
 def SelectRowsWithValueInColumn(df, column, values, option = None):
     '''
     INPUT: 
@@ -1156,6 +1187,10 @@ def SplitDataTrainTest(X, y, testSize = 0.3, randomState = 42):
     returns XTrain, XTest, yTrain, yTest
     '''
     XTrain, XTest, yTrain, yTest = train_test_split(X, y, test_size = testSize, random_state = randomState)
+    PrintLine('Test/Train split (test size = {}, random state = {}:'.format(testSize, randomState))
+    print('Training: X = {0}, y = {1}'.format(XTrain.shape, yTrain.shape))
+    print('Test    : X = {0}, y = {1}'.format(XTest.shape, yTest.shape))
+    PrintLine()
     return XTrain, XTest, yTrain, yTest
     
 def SplitDataInXY(df, colx, coly):
