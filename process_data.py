@@ -1,75 +1,85 @@
-import sys
 import DataScienceHelperLibrary as dsh
 import pandas as pd
 import numpy as np
+import sys
+
 from sqlalchemy import create_engine
 
+
 def load_data(messages_filepath, categories_filepath):
-    df = None
-    
-     succ, files = dsh.ReadCsvFiles([messages_filepath, categories_filepath])
-    if not succ:
-        raise ValueError('Files could not be read')    
-    return df
+    _, files = dsh.ReadCsvFiles([
+        messages_filepath, 
+        categories_filepath
+    ])
     
     messages = files[messages_filepath]
+    dsh.AnalyzeDataFrame(messages)
+    
     categories = files[categories_filepath]
+    dsh.AnalyzeDataFrame(categories)
     
-    dsh.AnalyseDataframe(messages)
-    dsh.AnalyseDataframe(categories)
-    dsh.AnalyseEqualColumns(messages, categories)
+    dsh.AnalyzeEqualColumns(messages, categories)
     
-    return dsh.QuickMerge(messages, categories)
-        
+    df = dsh.QuickMerge(messages, categories)
+    
+    return df
+
+
 def clean_data(df):
-    
-    ser = categories['categories']
-    categories = ser.str.split(';', expand = True)
-    
-    # by using range(10) I hopefully ensure to get unique values
-    # (please have a look at the brief discussion in workbook
-    # regarding the value 'related-2' in the column related)
     uniqueCategories = dsh.GetUniqueValuesListFromColumn(
-    df, 
-    'categories', 
-    clean = {'' : ['-' + str(i) for i in range(10)] },
-    splitby = ';',
-)
-    categories.columns = category_colnames
+        df, 
+        'categories', 
+        clean = {'' : ['-1', '-0'] },
+        splitby = ';',
+    )
+    
+    _ = dsh.CheckIfValuesContainedInEachOther(uniqueCategories)
+    
+    if 'related-2' in uniqueCategories:
+        uniqueCategories.remove('related-2')
+    
+    ser = df['categories']
+    categories = ser.str.split(';', expand = True)
+    categories.columns = uniqueCategories
     
     typelist = []
-for column in uniqueCategories:
-    # set each value to be the last character of the string
-    categories[column] = categories[column].apply(lambda x: int(str(x).replace(column + '-', "")))
-    # convert column from string to numeric
-    
-    # This step does not need to be done beuase I'm already calling int(..) in apply
-    typ = str(categories[column].dtype)
-    if typ in typelist:
-        continue
-    typelist.append(typ)
-    # data is at this point already numeric
-    
+    for column in uniqueCategories:
+        # set each value to be the last character of the string
+        categories[column] = categories[column].apply(lambda x: int(str(x).replace(column + '-', "")))
+        # convert column from string to numeric
+
+        # This step does not need to be done beuase I'm already calling int(..) in apply
+        typ = str(categories[column].dtype)
+        if typ in typelist:
+            continue
+        typelist.append(typ)
     print('DType/s of new columns is/are: ', typelist)
     
     df = df.drop('categories', axis = 1)
+    df = df.join(categories, how = 'inner', on = 'id')
     
-    dfFinal = dsh.QuickMerge(df, categories)
+    df = dsh.RemoveDuplicateRows(df)
+    dsh.AnalyzeNanColumns(df)
     
-    pass
-
+    return df
 
 def save_data(df, database_filename):
-    pass  
-
     engine = create_engine('sqlite:///{}'.format(database_filename))
+    table = 'Message'
+    
     dsh.PrintLine('Current Tables in DB:')
     print(engine.table_names())
     dsh.PrintLine()
     
-    df.to_sql(origMessages, engine, if_exists='append', chunksize=4)
+    sql = 'DROP TABLE IF EXISTS ' + table 
+    _ = engine.execute(sql)
+    
+    print('Inserting rows: ', df.shape[0], 'into table: ', table)
+    
+    df.to_sql(table, engine, if_exists = 'append', chunksize = 4)
     
     engine.dispose()
+
     
 def main():
     if len(sys.argv) == 4:
