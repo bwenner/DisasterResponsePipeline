@@ -9,7 +9,8 @@ from nltk.tokenize import word_tokenize
 
 from flask import Flask
 from flask import render_template, request, jsonify
-from plotly.graph_objs import Bar
+from plotly.graph_objs import Bar 
+from plotly.graph_objs import Heatmap
 from sklearn.externals import joblib
 from sqlalchemy import create_engine
 
@@ -104,7 +105,9 @@ model = joblib.load(DBSettings.SaveFilePickle)
 @app.route('/')
 @app.route('/index')
 def index():
-    
+    '''
+    Create graphics for index page
+    '''
     # extract data needed for visuals
     # TODO: Below is an example - modify to extract data for your own visuals
     genre_counts = df.groupby('genre').count()['message']
@@ -133,6 +136,44 @@ def index():
         }
     ]
     
+    # select columns
+    plotCols = dsh.RemoveColumnsByWildcard(df, ['index', 'id', 'message', 'original', 'genre'])
+    plotCols = plotCols.astype(int)
+    
+    catCounts = list(plotCols.value_counts().values)
+    catNames = list(plotcols.columns)
+    
+    graphThree = []
+
+    graphThree.append(
+      Bar(
+      x = catNames,
+      y = catCounts,
+      )
+    )
+
+    layoutThree = dict(title = 'Distribution of categories',
+                xaxis = dict(title = 'Category',),
+                yaxis = dict(title = 'Count'),
+                )
+    
+    graphFour = []
+                       
+    corrMat = plotCols.corr()
+    
+    graphFour.append(
+        Heatmap(
+            x=labels,    
+            y=labels,
+            z=corr.values,
+        )
+    layoutFour = dict(title = 'Correlation of categories',
+                height = 800,
+                )
+    graphs.append(dict(data = graphThree, layout = layoutThree))
+    graphs.append(dict(data = graphFour, layout = layoutFour))
+                  
+                       
     # encode plotly graphs in JSON
     ids = ["graph-{}".format(i) for i, _ in enumerate(graphs)]
     graphJSON = json.dumps(graphs, cls=plotly.utils.PlotlyJSONEncoder)
