@@ -1,11 +1,18 @@
+import DataScienceHelperLibrary as dsh
+from DisasterConfig import DBSettings
 from DisasterConfig import TokenizerSettings
 
 import json
 import plotly
 import pandas as pd
+import re
 
-from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from nltk.corpus import wordnet
 from nltk.tokenize import word_tokenize
+from nltk.tokenize import sent_tokenize
+from nltk.stem import WordNetLemmatizer
+from nltk.stem.porter import PorterStemmer
 
 from flask import Flask
 from flask import render_template, request, jsonify
@@ -16,8 +23,6 @@ from sqlalchemy import create_engine
 
 
 app = Flask(__name__)
-
-DBSettings.UseConfig = True
 
 def tokenize(text):
     '''
@@ -94,7 +99,7 @@ def tokenize(text):
     return cleanTokens
 
 # load data
-engine = create_engine('sqlite:///{}'.format(DBSettings.Database)
+engine = create_engine('sqlite:///{}'.format(DBSettings.Database))
 df = pd.read_sql_table(DBSettings.Table, engine)
 
 # load model
@@ -140,8 +145,8 @@ def index():
     plotCols = dsh.RemoveColumnsByWildcard(df, ['index', 'id', 'message', 'original', 'genre'])
     plotCols = plotCols.astype(int)
     
-    catCounts = list(plotCols.value_counts().values)
-    catNames = list(plotcols.columns)
+    catCounts = list(plotCols.sum(axis = 0).values)
+    catNames = list(plotCols.columns)
     
     graphThree = []
 
@@ -163,10 +168,11 @@ def index():
     
     graphFour.append(
         Heatmap(
-            x=labels,    
-            y=labels,
-            z=corr.values,
-        )
+            x = catNames,    
+            y = catNames,
+            z = corrMat.values,
+        ))
+
     layoutFour = dict(title = 'Correlation of categories',
                 height = 800,
                 )
@@ -185,6 +191,9 @@ def index():
 # web page that handles user query and displays model results
 @app.route('/go')
 def go():
+    '''
+    Get user input message, classify with model and return rendered go.html page.
+    '''
     # save user input in query
     query = request.args.get('query', '') 
 
@@ -201,6 +210,9 @@ def go():
 
 
 def main():
+    '''
+    Run web app.
+    '''
     app.run(host='0.0.0.0', port=3001, debug=True)
 
 
