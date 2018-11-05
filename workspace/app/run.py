@@ -1,3 +1,5 @@
+from DisasterConfig import TokenizerSettings
+
 import json
 import plotly
 import pandas as pd
@@ -14,23 +16,88 @@ from sqlalchemy import create_engine
 
 app = Flask(__name__)
 
+DBSettings.UseConfig = True
+
 def tokenize(text):
+    '''
+    Tokenize text based on config in DasterConfig.py
+    
+    INPUT:
+    text: string: text
+    
+    OUTPUT:
+    list of strings
+    '''
+    text = text.lower() # I prefer calling this function once instead for each word
+    
+    if TokenizerSettings.ReplaceUrlWithPlaceHolder:
+        if not dsh.IsNullOrEmpty(TokenizerSettings.CleanUrlReg):
+            foundUrls = re.findall(TokenizerSettings.CleanUrlReg, text)
+
+            for url in foundUrls:
+                text = text.replace(url, TokenizerSettings.UrlPlaceHolder)
+    
+    if TokenizerSettings.RemovePunctuation:
+        text = re.sub(TokenizerSettings.RemovePuncReg, ' ', text.lower())
+    
     tokens = word_tokenize(text)
-    lemmatizer = WordNetLemmatizer()
 
-    clean_tokens = []
+    # Call str() if values have been passed to whitelistwords that are no strings
+    whiteList = [str(white).lower() for white in TokenizerSettings.WhiteListWords]
+    
+    Lemmatizer = WordNetLemmatizer()
+    Stemmer = PorterStemmer()
+    
+    cleanTokens = []
     for tok in tokens:
-        clean_tok = lemmatizer.lemmatize(tok).lower().strip()
-        clean_tokens.append(clean_tok)
 
-    return clean_tokens
+        if TokenizerSettings.ConsiderOnlyLetters:
+            tok = dsh.KeepLetters(tok)
+        elif TokenizerSettings.ConsiderOnlyLettersNumbers:
+            tok = dsh.KeepLettersNumbers(tok)
+            
+        if TokenizerSettings.UseLemmatizer:
+            tok = Lemmatizer.lemmatize(tok)
+        
+        if TokenizerSettings.UseStemmer:
+            stemmed = Stemmer.stem(tok)
+        
+        if len(tok) < TokenizerSettings.ConsiderMinimumLength:
+            #print('Too short')
+            continue
+        
+        isStopWord = False
+        if TokenizerSettings.UseStopWords:
+            try:
+                for lang in list([lng for lng in TokenizerSettings.SupportedLanguages if lng is not None and len(lng) > 0]):
+                    if tok in stopwords.words(lang):
+                        isStopWord = True
+                        break
+            except:
+                print('Error during stop word handling with language: ', lang, \
+                    '\nand token: ', tok)
+        if isStopWord:
+            #print('Stopword')
+            continue
+        
+        isUnknownWord = False
+        if TokenizerSettings.UseWordNet:
+            if not wordnet.synsets(tok):
+                if not tok in whiteList:
+                    isUnknownWord = True
+        if isUnknownWord:
+            continue
+        
+        cleanTokens.append(tok)
+    
+    return cleanTokens
 
 # load data
-engine = create_engine('sqlite:///../data/YourDatabaseName.db')
-df = pd.read_sql_table('YourTableName', engine)
+engine = create_engine('sqlite:///{}'.format(DBSettings.Database)
+df = pd.read_sql_table(DBSettings.Table, engine)
 
 # load model
-model = joblib.load("../models/your_model_name.pkl")
+model = joblib.load(DBSettings.SaveFilePickle)
 
 
 # index webpage displays cool visuals and receives user input text for model
@@ -88,7 +155,7 @@ def go():
     return render_template(
         'go.html',
         query=query,
-        classification_result=classification_results
+        classification_result = classification_results
     )
 
 
